@@ -1,0 +1,462 @@
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.regex.Pattern;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
+
+public class raidersorgappv9v5{
+    private JFrame frame;
+    private JPanel mainContent;
+    private CardLayout cardLayout;
+
+    private final Color RAIDERS_SILVER = new Color(165, 172, 175);
+    private final Color RAIDERS_BLACK = new Color(0, 0, 0);
+    // Dashboard - BS Did This
+    public raidersorgappv9v5() {
+        frame = new JFrame("Las Vegas Raiders - Organization Dashboard");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(1200, 800);
+
+        cardLayout = new CardLayout();
+        mainContent = new JPanel(cardLayout);
+        
+        mainContent.add(createHomePanel(), "Home");
+        mainContent.add(createHistoryPanel(), "History");
+        mainContent.add(new footballGamePanel(), "footballGame");
+
+        // --- PLAYER ROSTER (loaded from CSV) ---
+        String[][] playerData = loadCSV("players.csv");
+        mainContent.add(createPlayerPanel(playerData), "Players");
+
+        // --- FRONT OFFICE (loaded from CSV) ---
+        String[][] frontOfficeData = loadCSV("front_office.csv");
+        mainContent.add(createDataPanel("Front Office", frontOfficeData,
+                new String[]{"Name", "Role", "Wiki"}), "Staff");
+
+        // --- TRAINING & SPORTS MEDICINE (loaded from CSV) ---
+        String[][] trainingData = loadCSV("training_staff.csv");
+        mainContent.add(createDataPanel("Training & Sports Medicine", trainingData,
+                new String[]{"Name", "Specialty"}), "Training");
+
+        // --- EQUIPMENT OPERATIONS (loaded from CSV) ---
+        String[][] equipmentData = loadCSV("equipment_staff.csv");
+        mainContent.add(createDataPanel("Equipment Operations", equipmentData,
+                new String[]{"Name", "Role"}), "Equipment");
+
+        // Sidebar Setup - JN Did This
+        JPanel sidebar = new JPanel();
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setBackground(RAIDERS_BLACK);
+        sidebar.setPreferredSize(new Dimension(240, 800));
+        sidebar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(RAIDERS_SILVER, 3),
+                new EmptyBorder(20, 15, 20, 15)));
+
+        JLabel logo = loadLogo(160);
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
+        sidebar.add(logo);
+        sidebar.add(Box.createRigidArea(new Dimension(0, 30)));
+
+        // Navigation Menu
+        String[][] navItems = {
+                {"HOME", "Home"},
+                {"TEAM HISTORY", "History"},
+                {"PLAYERS", "Players"},
+                {"FRONT OFFICE", "Staff"},
+                {"TRAINING STAFF", "Training"},
+                {"EQUIPMENT STAFF", "Equipment"},
+                {"FOOTBALL GAME", "footballGame"}
+        };
+
+        for (String[] item : navItems) {
+            sidebar.add(createNavButton(item[0], item[1]));
+            sidebar.add(Box.createRigidArea(new Dimension(0, 10)));
+        }
+
+        frame.add(sidebar, BorderLayout.WEST);
+        frame.add(mainContent, BorderLayout.CENTER);
+        frame.setVisible(true);
+    }
+
+    private JPanel createHistoryPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(RAIDERS_BLACK);
+        panel.setBorder(new EmptyBorder(40, 40, 40, 40));
+
+        // History Text - BS Did This
+        JLabel header = new JLabel("FRANCHISE HISTORY", SwingConstants.CENTER);
+        header.setFont(new Font("Impact", Font.PLAIN, 40));
+        header.setForeground(RAIDERS_SILVER);
+        header.setBorder(new EmptyBorder(0, 0, 30, 0));
+        panel.add(header, BorderLayout.NORTH);
+
+        JTextArea historyText = new JTextArea();
+        historyText.setText("""
+                The Las Vegas Raiders began their journey in 1960 as a charter member of the American Football League (AFL) in Oakland. \
+                Under the fierce leadership of Al Davis, who served as coach, GM, and eventually longtime owner, the "Silver and Black" cultivated \
+                a "Commitment to Excellence" and a rebel image that made them the NFL's perennial villains.
+
+                This grit led to immense success, including three Super Bowl titles (XI, XV, and XVIII) and the distinction of being the only team \
+                to reach the Super Bowl in the 1960s, '70s, and '80s. The franchise became legendary for iconic figures like John Madden, Ken Stabler, \
+                and Marcus Allen, as well as its fanatical "Raider Nation" base.
+
+                The team's history is also defined by its nomadic nature and stadium battles. After a 13-year stint in Los Angeles (1982–1994) that \
+                included their third championship, the Raiders returned to Oakland in 1995. However, unable to secure a modern stadium in California, \
+                the franchise made the historic move to Las Vegas in 2020. Now playing at the state-of-the-art Allegiant Stadium, the Raiders are in \
+                a new era under the leadership of Al's son, Mark Davis, as they seek to recapture the championship glory of their past while cementing \
+                their identity in the Nevada desert.""");
+
+        historyText.setFont(new Font("SansSerif", Font.PLAIN, 20));
+        historyText.setLineWrap(true);
+        historyText.setWrapStyleWord(true);
+        historyText.setEditable(false);
+        historyText.setBackground(Color.WHITE);
+        historyText.setForeground(Color.BLACK);
+        historyText.setBorder(new EmptyBorder(25, 25, 25, 25));
+
+        JPanel whiteBox = new JPanel(new BorderLayout());
+        whiteBox.setBackground(Color.WHITE);
+        whiteBox.setBorder(new LineBorder(RAIDERS_SILVER, 3));
+        whiteBox.add(historyText);
+
+        panel.add(whiteBox, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel createPlayerPanel(String[][] data) {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        JLabel header = new JLabel("Active Player Roster", SwingConstants.CENTER);
+        header.setFont(new Font("Impact", Font.PLAIN, 28));
+        header.setOpaque(true);
+        header.setBackground(RAIDERS_SILVER);
+        header.setForeground(RAIDERS_BLACK);
+        header.setPreferredSize(new Dimension(0, 60));
+
+        String[] cols = new String[]{"Name", "Position", "College", "Number", "Status", "Wiki"};
+
+        DefaultTableModel model = new DefaultTableModel(data, cols) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable table = new JTable(model);
+        table.setRowHeight(35);
+        table.setFont(new Font("Arial", Font.PLAIN, 14));
+        table.getTableHeader().setBackground(RAIDERS_SILVER);
+        table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+        // Roster + Wiki Links - LT Did This
+        int statusColIndex = 4;
+        table.getColumnModel().getColumn(statusColIndex)
+                .setCellRenderer(new StatusCellRenderer());
+
+        int wikiColIndex = 5;
+        table.getColumnModel().getColumn(wikiColIndex).setMinWidth(0);
+        table.getColumnModel().getColumn(wikiColIndex).setMaxWidth(0);
+        table.getColumnModel().getColumn(wikiColIndex).setWidth(0);
+
+        TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
+
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                int col = table.columnAtPoint(e.getPoint());
+                if (row < 0 || col < 0) return;
+
+                int modelRow = table.convertRowIndexToModel(row);
+
+                // Toggle Active/Injured - DB did this
+                if (col == statusColIndex &&
+                        SwingUtilities.isLeftMouseButton(e) &&
+                        e.getClickCount() == 1) {
+
+                    Object val = model.getValueAt(modelRow, statusColIndex);
+                    String current = (val == null) ? "" : val.toString();
+                    String next = current.equalsIgnoreCase("Active") ?
+                            "Injured" : "Active";
+                    model.setValueAt(next, modelRow, statusColIndex);
+                    return;
+                }
+
+                boolean leftDouble = SwingUtilities.isLeftMouseButton(e) &&
+                        e.getClickCount() == 2;
+                boolean rightSingle = SwingUtilities.isRightMouseButton(e) &&
+                        e.getClickCount() == 1;
+
+                if (leftDouble || rightSingle) {
+                    Object urlObj = model.getValueAt(modelRow, wikiColIndex);
+                    if (urlObj != null) {
+                        String url = urlObj.toString();
+                        if (!url.isEmpty()) {
+                            try {
+                                Desktop.getDesktop().browse(new URI(url));
+                            } catch (IOException | URISyntaxException ex) {
+                                ex.printStackTrace();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Search - DB did this
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
+        searchPanel.setBackground(RAIDERS_BLACK);
+
+        JLabel searchLabel = new JLabel("Search:");
+        searchLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        searchLabel.setForeground(RAIDERS_SILVER);
+
+        JTextField searchField = new JTextField(18);
+        searchField.setFont(new Font("Arial", Font.PLAIN, 14));
+
+        JLabel posLabel = new JLabel("Position:");
+        posLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        posLabel.setForeground(RAIDERS_SILVER);
+
+        String[] positions = {"All", "QB", "RB", "WR", "TE", "OL", "DE", "DT",
+                "LB", "CB", "S", "K", "P", "LS"};
+        JComboBox<String> positionFilter = new JComboBox<>(positions);
+        positionFilter.setFont(new Font("Arial", Font.PLAIN, 14));
+
+        searchPanel.add(searchLabel);
+        searchPanel.add(searchField);
+        searchPanel.add(Box.createHorizontalStrut(20));
+        searchPanel.add(posLabel);
+        searchPanel.add(positionFilter);
+
+        Runnable updateFilter = () -> {
+            String text = searchField.getText().trim();
+            String selectedPos = positionFilter.getSelectedItem().toString();
+
+            RowFilter<DefaultTableModel, Object> textFilter = null;
+            RowFilter<DefaultTableModel, Object> posFilter = null;
+
+            if (!text.isEmpty()) {
+                String pattern = "(?i)^" + Pattern.quote(text);
+                textFilter = RowFilter.regexFilter(pattern, 0); // Name column
+            }
+
+            if (!"All".equals(selectedPos)) {
+                String posPattern = "(?i)^" + Pattern.quote(selectedPos) + "$";
+                posFilter = RowFilter.regexFilter(posPattern, 1); // Position column
+            }
+
+            if (textFilter != null && posFilter != null) {
+                sorter.setRowFilter(RowFilter.andFilter(
+                        java.util.Arrays.asList(textFilter, posFilter)));
+            } else if (textFilter != null) {
+                sorter.setRowFilter(textFilter);
+            } else if (posFilter != null) {
+                sorter.setRowFilter(posFilter);
+            } else {
+                sorter.setRowFilter(null);
+            }
+        };
+
+        searchField.getDocument().addDocumentListener(
+                new javax.swing.event.DocumentListener() {
+                    @Override
+                    public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                        updateFilter.run();
+                    }
+
+                    @Override
+                    public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                        updateFilter.run();
+                    }
+
+                    @Override
+                    public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                        updateFilter.run();
+                    }
+                });
+
+        positionFilter.addActionListener(e -> updateFilter.run());
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(header, BorderLayout.NORTH);
+        topPanel.add(searchPanel, BorderLayout.CENTER);
+
+        panel.add(topPanel, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JLabel loadLogo(int size) {
+        try {
+            URL url = new URL("https://upload.wikimedia.org/wikipedia/en/thumb/4/48/Las_Vegas_Raiders_logo.svg/1200px-Las_Vegas_Raiders_logo.svg.png");
+            URLConnection connection = url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            Image rawImage = javax.imageio.ImageIO.read(connection.getInputStream());
+            Image scaledImage = rawImage.getScaledInstance(size, size, Image.SCALE_SMOOTH);
+            return new JLabel(new ImageIcon(scaledImage));
+        } catch (Exception e) {
+            JLabel label = new JLabel("RAIDERS");
+            label.setFont(new Font("Impact", Font.BOLD, 55));
+            label.setForeground(Color.WHITE);
+            return label;
+        }
+    }
+
+    private JButton createNavButton(String text, String cardName) {
+        JButton btn = new JButton(text);
+        btn.setMaximumSize(new Dimension(210, 45));
+        btn.setBackground(RAIDERS_SILVER);
+        btn.setForeground(RAIDERS_BLACK);
+        btn.setFont(new Font("Impact", Font.PLAIN, 18));
+        btn.setFocusPainted(false);
+        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btn.addActionListener(e -> cardLayout.show(mainContent, cardName));
+        return btn;
+    }
+
+    private JPanel createHomePanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(RAIDERS_BLACK);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridx = 0;
+        gbc.anchor = GridBagConstraints.CENTER;
+
+        gbc.gridy = 0;
+        panel.add(loadLogo(300), gbc);
+
+        gbc.gridy = 1;
+        panel.add(Box.createRigidArea(new Dimension(0, 30)), gbc);
+
+        JLabel welcome = new JLabel("Welcome Raider Nation!", SwingConstants.CENTER);
+        welcome.setFont(new Font("Impact", Font.PLAIN, 56));
+        welcome.setForeground(RAIDERS_SILVER);
+        gbc.gridy = 2;
+        panel.add(welcome, gbc);
+
+        return panel;
+    }
+
+    private JPanel createDataPanel(String title, String[][] data, String[] cols) {
+        JPanel panel = new JPanel(new BorderLayout());
+        JLabel header = new JLabel(title, SwingConstants.CENTER);
+        header.setFont(new Font("Impact", Font.PLAIN, 28));
+        header.setOpaque(true);
+        header.setBackground(RAIDERS_SILVER);
+        header.setForeground(RAIDERS_BLACK);
+        header.setPreferredSize(new Dimension(0, 60));
+
+        String[][] effectiveData = data;
+        String[] effectiveCols = cols;
+
+        boolean hasWiki = title.equals("Front Office");
+
+        JTable table = new JTable(effectiveData, effectiveCols) {
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        table.setRowHeight(35);
+        table.setFont(new Font("Arial", Font.PLAIN, 14));
+        table.getTableHeader().setBackground(RAIDERS_SILVER);
+        table.getTableHeader().setFont(new Font("Arial", Font.BOLD, 14));
+
+        if (hasWiki) {
+            int wikiColIndex = effectiveCols.length - 1;
+            table.getColumnModel().getColumn(wikiColIndex).setMinWidth(0);
+            table.getColumnModel().getColumn(wikiColIndex).setMaxWidth(0);
+            table.getColumnModel().getColumn(wikiColIndex).setWidth(0);
+
+            table.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    boolean leftDouble = SwingUtilities.isLeftMouseButton(e) && e.getClickCount() == 2;
+                    boolean rightSingle = SwingUtilities.isRightMouseButton(e) && e.getClickCount() == 1;
+
+                    if (leftDouble || rightSingle) {
+                        int row = table.rowAtPoint(e.getPoint());
+                        if (row >= 0) {
+                            Object urlObj = table.getValueAt(row, wikiColIndex);
+                            if (urlObj != null) {
+                                String url = urlObj.toString();
+                                if (!url.isEmpty()) {
+                                    try {
+                                        Desktop.getDesktop().browse(new URI(url));
+                                    } catch (Exception ex) {
+                                        ex.printStackTrace();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+    private static class StatusCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            if (value != null) {
+                String status = value.toString();
+                if ("Active".equalsIgnoreCase(status)) {
+                    c.setForeground(new Color(0, 150, 0));
+                } else if ("Injured".equalsIgnoreCase(status)) {
+                    c.setForeground(Color.RED);
+                } else {
+                    c.setForeground(Color.BLACK);
+                }
+            } else {
+                c.setForeground(Color.BLACK);
+            }
+            return c;
+        }
+    }
+
+    // CSV - LT Did This
+    private String[][] loadCSV(String fileName) {
+    java.util.List<String[]> rows = new java.util.ArrayList<>();
+
+    try (java.io.InputStream is = getClass().getResourceAsStream(fileName)) {
+        if (is == null) {
+            System.err.println("Could not find resource: " + fileName);
+            return new String[0][0];
+        }
+        try (BufferedReader br = new BufferedReader(new java.io.InputStreamReader(is))) {
+            String line;
+            boolean skipHeader = true;
+            while ((line = br.readLine()) != null) {
+                if (skipHeader) { skipHeader = false; continue; }
+                rows.add(line.split(",", -1));
+            }
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+
+    return rows.toArray(new String[0][]);
+}
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(raidersorgappv9v5::new);
+    }
+}
