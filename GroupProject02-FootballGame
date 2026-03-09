@@ -1,0 +1,372 @@
+// Football Game - JN Did This
+import java.awt.*;
+import java.util.Random;
+import javax.swing.*;
+
+public class footballGamePanel extends JPanel {
+    private JTextArea output;
+    private JButton runButton, passButton, resetButton;
+    private JButton extraPointButton;
+    private JButton twoPointButton;
+    private int ballPosition;
+    private int down;
+    private int yardsToFirstDown;
+    private int playerScore;
+    private int opponentScore;
+    private int quarter;
+    private int secondsLeft;
+    private JLabel scoreboard;
+    private Random rand = new Random();
+    private boolean playerTurn;
+    
+    public footballGamePanel() {
+        setLayout(new BorderLayout());
+        setBackground(Color.BLACK);
+        // TOP PANEL
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBackground(Color.BLACK);
+
+        JLabel title = new JLabel("RAIDERS FOOTBALL MINI-GAME", SwingConstants.CENTER);
+        title.setFont(new Font("Impact", Font.PLAIN, 24));
+        title.setForeground(Color.WHITE);
+        topPanel.add(title, BorderLayout.NORTH);
+
+        scoreboard = new JLabel("", SwingConstants.CENTER);
+        scoreboard.setFont(new Font("Arial", Font.BOLD, 18));
+        scoreboard.setForeground(Color.WHITE);
+        scoreboard.setBorder(BorderFactory.createEmptyBorder(5, 0, 10, 0));
+        topPanel.add(scoreboard, BorderLayout.SOUTH);
+
+        add(topPanel, BorderLayout.NORTH);
+        // TEXT AREA
+        output = new JTextArea();
+        output.setEditable(false);
+        output.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        output.setBackground(Color.BLACK);
+        output.setForeground(Color.WHITE);
+        add(new JScrollPane(output), BorderLayout.CENTER);
+        // BUTTON PANEL
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setBackground(Color.DARK_GRAY);
+
+        
+        runButton = new JButton("Run Play");
+        passButton = new JButton("Pass Play");
+        resetButton = new JButton("Reset Game");
+        extraPointButton = new JButton("Kick XP");
+        twoPointButton = new JButton("Go for 2");
+        extraPointButton.setVisible(false);
+        twoPointButton.setVisible(false);
+
+        buttonPanel.add(runButton);
+        buttonPanel.add(passButton);
+        buttonPanel.add(resetButton);
+        buttonPanel.add(extraPointButton);
+        buttonPanel.add(twoPointButton);
+
+       add(buttonPanel, BorderLayout.SOUTH);
+        // LISTENERS
+        runButton.addActionListener(e -> handlePlay(1));
+        passButton.addActionListener(e -> handlePlay(2));
+        extraPointButton.addActionListener(e -> attemptExtraPoint());
+        twoPointButton.addActionListener(e -> attemptTwoPoint());
+        resetButton.addActionListener(e -> resetGame());
+
+        resetGame();
+    }
+
+    private void resetGame() {
+        ballPosition = 25;
+        down = 1;
+        yardsToFirstDown = 10;
+        playerScore = 0;
+        opponentScore = 0;
+        quarter = 1;
+        secondsLeft = 15 * 60;
+        playerTurn = true;
+
+        output.setText("Raiders start at the 25-yard line.\n");
+        output.append("Drive down the field and score!\n\n");
+
+        runButton.setEnabled(true);
+        passButton.setEnabled(true); 
+
+        updateStatus();
+        updateScoreboard();
+    }
+    private String formatClock() {
+    int minutes = secondsLeft / 60;
+    int seconds = secondsLeft % 60;
+    return String.format("%d:%02d", minutes, seconds);
+    }
+
+    private void updateStatus() {
+        output.append("Current Position: " + ballPosition + " yard line\n");
+        output.append("Down: " + down + "\n");
+        output.append("Yards to First down: " + yardsToFirstDown + "\n\n");
+        updateScoreboard();
+    }
+
+    private void handlePlay(int choice) {
+        if (down > 4) {
+    output.append("Turnover on downs! Opponent takes over.\n");
+    disableButtons();
+    playerTurn = false;
+    startOpponentDrive();
+    return;
+        }
+        int gained = runPlay(choice);
+        ballPosition += gained;
+        yardsToFirstDown -= gained;
+
+        if (gained >= 0) {
+            output.append("You gained " + gained + " yards!\n\n");
+        } else {
+            output.append("You lost " + Math.abs(gained) + " yards!\n\n");
+        }
+        // CLOCK DRAIN
+        if (choice == 1) {
+        // Run play drains 30–40 seconds
+        secondsLeft -= (30 + rand.nextInt(11));
+        } else {
+        // Pass play
+        if (gained == 0) {
+        // incomplete pass stops clock
+        } else {
+        // completed pass drains 5–10 seconds
+        secondsLeft -= (5 + rand.nextInt(6));
+    }
+}
+        if (secondsLeft <= 0) {
+        endQuarter();
+        return;
+}
+        // TOUCHDOWN
+        if (ballPosition >= 100) {
+            output.append("TOUCHDOWN RAIDERS!\n");
+            playerScore += 6;
+            updateScoreboard();
+            disableButtons();
+            extraPointButton.setVisible(true);
+            twoPointButton.setVisible(true);
+            extraPointButton.setEnabled(true);
+            twoPointButton.setEnabled(true);
+            output.append("Attempt the extra point or a field goal (for testing).\n");
+            return;
+        }
+        // FIRST DOWN
+        if (yardsToFirstDown <= 0) {
+            output.append("First down!\n\n");
+            down = 1;
+            yardsToFirstDown = 10;
+            updateStatus();
+            return;
+        }
+        // ADVANCE DOWN
+        down++;
+
+        // TURNOVER ON DOWNS
+        if (down > 4) {
+            output.append("Turnover on downs. Drive over.\n");
+            disableButtons();
+            playerTurn = false;
+            startOpponentDrive();
+            return;
+        }
+
+        updateStatus();
+        output.setCaretPosition(output.getDocument().getLength());
+    }
+
+    private void disableButtons() {
+        runButton.setEnabled(false);
+        passButton.setEnabled(false);
+        extraPointButton.setEnabled(false);
+        twoPointButton.setEnabled(false);
+
+    }
+
+    private int runPlay(int choice) {
+        int defense = rand.nextInt(2); // 0 = run defense, 1 = pass defense
+
+        if (choice == 1) {
+            return runResult(defense);
+        } else {
+            return passResult(defense);
+        }
+    }
+
+    private int runResult(int defense) {
+        if (defense == 0) {
+            return rand.nextInt(3) - 1; // -1 to +1 yards
+        } else {
+            return rand.nextInt(10) + 1; // 1 to 10 yards
+        }
+    }
+
+    private int passResult(int defense) {
+        if (defense == 1) {
+            int chance = rand.nextInt(100);
+            if (chance < 20) return -5;      // Sack
+            if (chance < 50) return 0;       // Incomplete
+            return rand.nextInt(10) + 5;     // 5 to 15 yards
+        } else {
+            return rand.nextInt(20) + 10;     // 10 to 30 yards
+        }
+    }
+
+    private void updateScoreboard() {
+        scoreboard.setText(
+        "Q" + quarter +
+        "   " + formatClock() +
+        "   Raiders: " + playerScore +
+        "   Opponent: " + opponentScore +
+        "   Ball at: " + ballPosition +
+        "   Down: " + down +
+        "   To First: " + yardsToFirstDown
+        );
+    }
+
+    private void attemptExtraPoint() {
+        int chance = rand.nextInt(100);
+
+        if (chance < 95) {
+            output.append("Extra point is GOOD!\n");
+            playerScore += 1;
+        } else {
+            output.append("Extra point is NO GOOD!\n");
+        }
+
+        resetDriveAfterScore();
+    }
+
+    private void resetDriveAfterScore() {
+        ballPosition = 25;
+        down = 1;
+        yardsToFirstDown = 10;
+
+        runButton.setEnabled(true);
+        passButton.setEnabled(true);
+        extraPointButton.setEnabled(false);
+        twoPointButton.setEnabled(false);
+        extraPointButton.setVisible(false);
+        twoPointButton.setVisible(false);
+
+        updateScoreboard();
+        updateStatus();
+
+        playerTurn = false;
+        startOpponentDrive();
+    }
+    private void attemptTwoPoint() {
+    int chance = rand.nextInt(100);
+
+    if (chance < 50) { // 50% success
+        output.append("Two-point conversion is GOOD!\n");
+        playerScore += 2;
+    } else {
+        output.append("Two-point conversion FAILED.\n");
+    }
+
+    resetDriveAfterScore();
+    }
+    private void startOpponentDrive() {
+    output.append("\n--- Opponent Drive Begins ---\n");
+    ballPosition = 25;
+    down = 1;
+    yardsToFirstDown = 10;
+    // OPPONENT DRIVE LOOP
+    while (true) {
+        int choice = rand.nextInt(2) + 1; // 1 = run, 2 = pass
+        int gained = runPlay(choice);
+
+        ballPosition += gained;
+        yardsToFirstDown -= gained;
+
+        if (gained >= 0) {
+            output.append("Opponent gained " + gained + " yards.\n");
+        } else {
+            output.append("Opponent lost " + Math.abs(gained) + " yards.\n");
+        }
+        if (choice == 1) {
+        secondsLeft -= (30 + rand.nextInt(11));
+        } else {
+        if (gained == 0) {
+        // incomplete pass stops clock
+        } else {
+        secondsLeft -= (5 + rand.nextInt(6));
+        }
+        }
+        if (secondsLeft <= 0) {
+        endQuarter();
+        return;
+}
+    // TOUCHDOWN
+        if (ballPosition >= 100) {
+            output.append("Opponent scores a TOUCHDOWN!\n");
+            opponentScore += 6;
+             // XP attempt
+            if (rand.nextInt(100) < 95) {
+                output.append("Opponent extra point is GOOD.\n");
+                opponentScore += 1;
+            } else {
+                output.append("Opponent extra point is NO GOOD.\n");
+            }
+
+            updateScoreboard();
+            break;
+        }
+    // FIRST DOWN
+        if (yardsToFirstDown <= 0) {
+            output.append("Opponent gets a first down.\n");
+            down = 1;
+            yardsToFirstDown = 10;
+            continue;
+        }
+    // ADVANCE DOWN
+        down++;
+    // TURNOVER ON DOWNS
+        if (down > 4) {
+            output.append("Opponent fails on 4th down! Raiders take over.\n");
+            break;
+        }
+    }
+    // After opponent drive ends, give ball back to player
+    playerTurn = true;
+    ballPosition = 25;
+    down = 1;
+    yardsToFirstDown = 10;
+
+    output.append("\n--- Raiders Drive Begins ---\n");
+    runButton.setEnabled(true);
+    passButton.setEnabled(true);
+
+    updateScoreboard();
+}
+ private void endQuarter() {
+    output.append("\n--- END OF QUARTER " + quarter + " ---\n\n");
+    quarter++;
+
+    if (quarter > 4) {
+        endGame();
+        return;
+    }
+// RESET TIME FOR NEXT QUARTER
+    secondsLeft = 15 * 60; 
+    updateScoreboard();
+}
+private void endGame() {
+    output.append("\n=== END OF GAME ===\n");
+    output.append("Final Score: Raiders " + playerScore + " - Opponent " + opponentScore + "\n");
+
+    if (playerScore > opponentScore) {
+        output.append("Raiders WIN!\n");
+    } else if (playerScore < opponentScore) {
+        output.append("Raiders lose.\n");
+    } else {
+        output.append("The game ends in a tie.\n");
+    }
+
+    disableButtons();
+}
+}
